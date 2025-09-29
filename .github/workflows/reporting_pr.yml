@@ -8,11 +8,17 @@ on:
 jobs:
   report_changes:
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pull-requests: write
+
     steps:
       - name: Checkout repository and fetch full history
-        # fetch-depth: 0 необходим для работы с тегами
         uses: actions/checkout@v4
         with:
+          # Для работы с тегами и для получения Action из другого репо
+          token: ${{ secrets.REPO_ACCESS_TOKEN }}
           fetch-depth: 0
 
       - name: Get current and previous tags
@@ -21,32 +27,25 @@ jobs:
           # Текущий коммит PR
           CURRENT_COMMIT=${{ github.event.pull_request.head.sha }}
           
-          # Получаем хеш коммита предыдущего тега для сравнения
+          # Логика для надежного получения второго с конца тега
           PREVIOUS_TAG_HASH=$(git rev-list --tags --max-count=2 --skip=1 --date-order | head -n 1)
-          PREVIOUS_TAG=$(git describe --tags --abbrev=0 ${PREVIOUS_TAG_HASH} 2>/dev/null || echo "initial")
+          if [ -z "$PREVIOUS_TAG_HASH" ]; then
+              PREVIOUS_REF="NOT_FOUND" 
+          else
+              PREVIOUS_REF=$(git describe --tags --abbrev=0 ${PREVIOUS_TAG_HASH} 2>/dev/null)
+          fi
           
-          # current-ref - HEAD PR, previous-ref - предыдущий тег
           echo "current-ref=$CURRENT_COMMIT" >> $GITHUB_OUTPUT
-          echo "previous-ref=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
-
-      - name: Checkout Central Action (khandramai/c)
-        # Клонируем центральный репозиторий, чтобы получить Action
-        uses: actions/checkout@v4
-        with:
-          repository: khandramai/c
-          token: ${{ secrets.REPO_ACCESS_TOKEN }} # Требуется PAT
-          path: c-action
+          echo "previous-ref=$PREVIOUS_REF" >> $GITHUB_OUTPUT
 
       - name: Compare Schemas and Generate Report
         id: compare_schemas
-        # Используем Action из клонированного центрального репозитория
-        uses: ./c-action/.github/actions/compare-schemas
+        # Прямое использование Action из центрального репозитория
+        uses: khandramai/c/.github/actions/compare-schemas@main
         with:
           current-ref: ${{ steps.tags.outputs.current-ref }}
           previous-ref: ${{ steps.tags.outputs.previous-ref }}
           schemas-path: 'ramls'
-        # Не нужно переопределять GITHUB_WORKSPACE, т.к. Checkout по умолчанию
-        # клонировал модуль a/b в корень рабочей области, а action c - в папку c-action.
 
       - name: Comment on Pull Request with Report
         uses: actions/github-script@v6
