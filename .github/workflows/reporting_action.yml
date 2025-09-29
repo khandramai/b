@@ -1,0 +1,27 @@
+name: Schema Diff on PR (b)
+
+on:
+  pull_request:
+    paths:
+      - "ramlsb/**"    # отслеживаем только изменения схем в этой папке
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  schema-diff:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run schema diff from central repo
+        id: diff
+        uses: khandramai/c/.github/actions/schema-diff@main   # или конкретный tag/branch
+        with:
+          repo: khandramai/b
+          paths_json: '["ramlsb"]'
+          tag_selector: auto
+
+      - name: Comment on PR with diff
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          path: ${{ steps.diff.outputs.report_dir }}/README.md
