@@ -1,0 +1,66 @@
+name: Reporting on Pull Request
+
+on:
+  pull_request:
+    branches:
+      - main # Или ваша основная ветка
+
+jobs:
+  report_changes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        # Клонирование репозитория. fetch-depth: 0 нужен, чтобы получить предыдущие теги.
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get current and previous tags
+        # Получение текущего (HEAD) и предыдущего тега.
+        # Здесь логика должна быть реализована либо скриптом, либо с помощью стороннего экшена.
+        # В целях самодостаточности, используем shell-скрипт для определения тегов.
+        id: tags
+        run: |
+          # Получаем последний тег (текущий) на текущей ветке PR
+          CURRENT_TAG=$(git describe --tags --abbrev=0)
+          
+          # Получаем предыдущий тег
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 $CURRENT_TAG^ 2>/dev/null || echo "initial_commit") 
+          
+          echo "current_tag=$CURRENT_TAG" >> $GITHUB_OUTPUT
+          echo "previous_tag=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
+
+      # Предполагаем, что ваш исходный экшен/скрипт находится в локальной папке
+      # и выполняет сравнение схем между двумя тегами.
+      # Адаптируйте этот шаг под вашу реальную логику из исходного workflow.
+      # Мы используем условный скрипт для генерации отчета.
+      - name: Generate diff report
+        id: diff
+        run: |
+          echo "## Отчет об изменениях в схеме (PR-анализ)" > report.md
+          echo "Сравнение: ${{ steps.tags.outputs.previous_tag }}...${{ steps.tags.outputs.current_tag }}" >> report.md
+          
+          # Замените это на вызов вашего реального скрипта сравнения схем
+          # (например, `node ./scripts/diff-checker.js --from ${{ steps.tags.outputs.previous_tag }} --to ${{ steps.tags.outputs.current_tag }} --path <конфигурируемая папка> >> report.md`)
+          echo "- Обнаружены изменения в 'папке_схем': [Детали изменений]" >> report.md
+          
+          # Сохраняем отчет в выходные данные, чтобы использовать его в комментарии
+          REPORT=$(cat report.md)
+          # Заменяем многострочный текст для передачи в экшен
+          REPORT="${REPORT//'%'/'%25'}"
+          REPORT="${REPORT//$'\n'/'%0A'}"
+          REPORT="${REPORT//$'\r'/'%0D'}"
+          echo "report_content=$REPORT" >> $GITHUB_OUTPUT
+
+      - name: Comment on Pull Request
+        # Используем экшен для добавления комментария
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const report = `${{ steps.diff.outputs.report_content }}`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });
