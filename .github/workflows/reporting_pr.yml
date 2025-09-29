@@ -1,63 +1,59 @@
-name: Reporting on Pull Request
+name: Schema Changes Report on PR
 
 on:
   pull_request:
     branches:
-      - main # Или ваша основная ветка
+      - main # Ваша основная/целевая ветка
 
 jobs:
   report_changes:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        # Клонирование репозитория. fetch-depth: 0 нужен, чтобы получить предыдущие теги.
+      - name: Checkout repository and fetch full history
+        # fetch-depth: 0 необходим для работы с тегами
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Get current and previous tags
-        # Получение текущего (HEAD) и предыдущего тега.
-        # Здесь логика должна быть реализована либо скриптом, либо с помощью стороннего экшена.
-        # В целях самодостаточности, используем shell-скрипт для определения тегов.
         id: tags
         run: |
-          # Получаем последний тег (текущий) на текущей ветке PR
-          CURRENT_TAG=$(git describe --tags --abbrev=0)
+          # Текущий коммит PR
+          CURRENT_COMMIT=${{ github.event.pull_request.head.sha }}
           
-          # Получаем предыдущий тег
-          PREVIOUS_TAG=$(git describe --tags --abbrev=0 $CURRENT_TAG^ 2>/dev/null || echo "initial_commit") 
+          # Получаем хеш коммита предыдущего тега для сравнения
+          PREVIOUS_TAG_HASH=$(git rev-list --tags --max-count=2 --skip=1 --date-order | head -n 1)
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 ${PREVIOUS_TAG_HASH} 2>/dev/null || echo "initial")
           
-          echo "current_tag=$CURRENT_TAG" >> $GITHUB_OUTPUT
-          echo "previous_tag=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
+          # current-ref - HEAD PR, previous-ref - предыдущий тег
+          echo "current-ref=$CURRENT_COMMIT" >> $GITHUB_OUTPUT
+          echo "previous-ref=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
 
-      # Предполагаем, что ваш исходный экшен/скрипт находится в локальной папке
-      # и выполняет сравнение схем между двумя тегами.
-      # Адаптируйте этот шаг под вашу реальную логику из исходного workflow.
-      # Мы используем условный скрипт для генерации отчета.
-      - name: Generate diff report
-        id: diff
-        run: |
-          echo "## Отчет об изменениях в схеме (PR-анализ)" > report.md
-          echo "Сравнение: ${{ steps.tags.outputs.previous_tag }}...${{ steps.tags.outputs.current_tag }}" >> report.md
-          
-          # Замените это на вызов вашего реального скрипта сравнения схем
-          # (например, `node ./scripts/diff-checker.js --from ${{ steps.tags.outputs.previous_tag }} --to ${{ steps.tags.outputs.current_tag }} --path <конфигурируемая папка> >> report.md`)
-          echo "- Обнаружены изменения в 'папке_схем': [Детали изменений]" >> report.md
-          
-          # Сохраняем отчет в выходные данные, чтобы использовать его в комментарии
-          REPORT=$(cat report.md)
-          # Заменяем многострочный текст для передачи в экшен
-          REPORT="${REPORT//'%'/'%25'}"
-          REPORT="${REPORT//$'\n'/'%0A'}"
-          REPORT="${REPORT//$'\r'/'%0D'}"
-          echo "report_content=$REPORT" >> $GITHUB_OUTPUT
+      - name: Checkout Central Action (khandramai/c)
+        # Клонируем центральный репозиторий, чтобы получить Action
+        uses: actions/checkout@v4
+        with:
+          repository: khandramai/c
+          token: ${{ secrets.REPO_ACCESS_TOKEN }} # Требуется PAT
+          path: c-action
 
-      - name: Comment on Pull Request
-        # Используем экшен для добавления комментария
+      - name: Compare Schemas and Generate Report
+        id: compare_schemas
+        # Используем Action из клонированного центрального репозитория
+        uses: ./c-action/.github/actions/compare-schemas
+        with:
+          current-ref: ${{ steps.tags.outputs.current-ref }}
+          previous-ref: ${{ steps.tags.outputs.previous-ref }}
+          schemas-path: 'ramls'
+        # Не нужно переопределять GITHUB_WORKSPACE, т.к. Checkout по умолчанию
+        # клонировал модуль a/b в корень рабочей области, а action c - в папку c-action.
+
+      - name: Comment on Pull Request with Report
         uses: actions/github-script@v6
         with:
           script: |
-            const report = `${{ steps.diff.outputs.report_content }}`;
+            const report = `### 📝 Отчет об изменениях в схемах\n\n**Сравнение:** \`${{ steps.tags.outputs.previous-ref }}...${{ steps.tags.outputs.current-ref }}\`\n\n${{ steps.compare_schemas.outputs.report }}`;
+            
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
