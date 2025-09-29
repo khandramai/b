@@ -8,14 +8,11 @@ on:
 jobs:
   call_schema_check:
     name: Проверить изменения схемы
-    # Вызываем переиспользуемый workflow из репозитория C
+    # ❗️ КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Ссылка на центральный репозиторий 'c'
     uses: khandramai/c/.github/workflows/reusable_schema_check.yml@main
     with:
       pull_request_number: ${{ github.event.pull_request.number }}
       head_sha: ${{ github.event.pull_request.head.sha }}
       base_sha: ${{ github.event.pull_request.base.sha }}
-      schema_path: 'src/schemas' # Убедитесь, что этот путь актуален для репозитория A/B
-    secrets:
-    # Для публичных репозиториев GITHUB_TOKEN достаточно.
-    # Если C - приватный, а A/B - нет, может потребоваться передача токена
-    # с правом на чтение C, но начните с этой конфигурации.
+      schema_path: 'ramls' # <-- Убедитесь, что этот путь актуален для репозитория A/B
+    secrets: inherit # Передаем все доступные секреты
