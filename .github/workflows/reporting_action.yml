@@ -29,6 +29,9 @@ on:
         description: "Optional head ref (tag/commit)"
         required: false
         type: string
+      repository:
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -135,7 +138,7 @@ jobs:
 
           git -c diff.renames=true diff --name-status -M "$BASE" "$HEAD" -- ramls/*.json > /tmp/status.txt || true
 
-          REPO_NAME="${GITHUB_REPOSITORY##*/}"
+          REPO_NAME="${{ inputs.repository || github.repository }}"
           {
             echo "## JSON Schema Changes (\`$REPO_NAME\`)"
             echo
