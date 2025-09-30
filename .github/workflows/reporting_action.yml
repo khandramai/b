@@ -259,5 +259,5 @@ jobs:
         with:
           name: ${{ inputs.artifact_name || format('report-{0}-{1}', github.run_id, github.job) }}
           path: report.md
-        if-no-files-found: error
-        retention-days: 7
+          if-no-files-found: error
+          retention-days: 7
