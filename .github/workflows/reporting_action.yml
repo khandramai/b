@@ -135,8 +135,9 @@ jobs:
 
           git -c diff.renames=true diff --name-status -M "$BASE" "$HEAD" -- ramls/*.json > /tmp/status.txt || true
 
+          REPO_NAME="${GITHUB_REPOSITORY##*/}"
           {
-            echo "## JSON Schema Changes"
+            echo "## JSON Schema Changes (\`$REPO_NAME\`)"
             echo
             echo "- Base: \`$BASE\`"
             echo "- Head: \`$HEAD\`"
