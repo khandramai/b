@@ -141,11 +141,6 @@
             "type": "string",
             "description": "Personal name, corporate name, meeting name"
           },
-          "contributorTypeId": {
-            "type": "string",
-            "description": "UUID for the contributor type term defined in controlled vocabulary",
-            "$ref": "uuid.json"
-          },
           "contributorTypeText": {
             "type": "string",
             "description": "Free text element for adding contributor type terms other that defined by the MARC code list for relators"
